@@ -123,6 +123,7 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
 uint64
 walkaddr(pagetable_t pagetable, uint64 va)
 {
+  // printf("va 0x%lx\n", va);
   pte_t *pte;
   uint64 pa;
 
