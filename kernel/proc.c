@@ -286,15 +286,25 @@ growproc(int n)
   uint64 sz;
   struct proc *p = myproc();
 
-  sz = p->sz;
-  if(n > 0){
+  if (n > SUPERPGSIZE) {
+    sz = p->sz;
+    // 这里其实还有一个需要做的：如果 SuperPage 不够用了，转常规，所以应该记录一个 p->sz_super，要比较一下
+    if((sz = uvmalloc_super(p->pagetable, sz, sz + n, PTE_W)) == 0) {
+      return -1;
+    } else if(n < 0){
+      sz = uvmdealloc_super(p->pagetable, sz, sz + n);
+    }
+    p->sz = sz;
+    printf("growproc: sz=%p\n", (void *)sz);
+  } else {
+    sz = p->sz;
     if((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W)) == 0) {
       return -1;
+    } else if(n < 0){
+      sz = uvmdealloc(p->pagetable, sz, sz + n);
     }
-  } else if(n < 0){
-    sz = uvmdealloc(p->pagetable, sz, sz + n);
+    p->sz = sz;
   }
-  p->sz = sz;
   return 0;
 }
 

@@ -14,9 +14,9 @@ void superpg_test();
 int
 main(int argc, char *argv[])
 {
-  // print_pgtbl();
-  // ugetpid_test();
-  // print_kpgtbl();
+  print_pgtbl();
+  ugetpid_test();
+  print_kpgtbl();
   superpg_test();
   printf("pgtbltest: all tests succeeded\n");
   exit(0);
@@ -34,12 +34,6 @@ err(char *why)
 void
 print_pte(uint64 va)
 {
-
-    // kernel/riscv.h 中定义的内容
-    // #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)
-    // #define PTE2PA(pte) (((pte) >> 10) << 12)
-    // #define PTE_FLAGS(pte) ((pte) & 0x3FF)
-
     pte_t pte = (pte_t) pgpte((void *) va);
     printf("va 0x%lx pte 0x%lx pa 0x%lx perm 0x%lx\n", va, pte, PTE2PA(pte), PTE_FLAGS(pte));
 }
@@ -138,11 +132,7 @@ superpg_test()
     supercheck(s);
     exit(0);
   } else {
-    int status;
-    wait(&status);
-    if (status != 0) {
-      exit(0);
-    }
+    wait(0);
   }
   printf("superpg_test: OK\n");  
 }

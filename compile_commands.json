@@ -1,0 +1,7 @@
+[
+  {
+    "directory": ".",
+    "command": "make",
+    "file": "kernel/syscall.c"
+  }
+] 
