@@ -102,11 +102,11 @@ supercheck(uint64 s)
     last_pte = pte;
   }
 
-  for(int i = 0; i < 512; i += PGSIZE){
+  for(int i = 0; i < SUPERPGSIZE; i += PGSIZE){
     *(int*)(s+i) = i;
   }
 
-  for(int i = 0; i < 512; i += PGSIZE){
+  for(int i = 0; i < SUPERPGSIZE; i += PGSIZE){
     if(*(int*)(s+i) != i)
       err("wrong value");
   }
