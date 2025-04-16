@@ -1,5 +1,15 @@
 #ifndef __ASSEMBLER__
 
+// GCC 能编译下面的代码，可以看下面链接的说明
+// https://ttzytt.com/2022/07/xv6_lab4_record/index.html
+static inline uint64
+r_fp()
+{
+  uint64 x;
+  asm volatile("mv %0, s0" : "=r" (x) );
+  return x;
+}
+
 // which hart (core) is this?
 static inline uint64
 r_mhartid()

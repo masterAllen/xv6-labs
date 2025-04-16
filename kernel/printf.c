@@ -176,3 +176,30 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+
+void backtrace(void)
+{
+  printf("backtrace:\n");
+
+  uint64 cur_fp = r_fp();
+
+  uint64 top = PGROUNDUP(cur_fp);
+  uint64 bot = PGROUNDDOWN(cur_fp);
+
+  // while(cur_fp < top && cur_fp > bot){
+  //   for (int i = 0; i < 3; i++) {
+  //     uint64 now_addr = cur_fp - i * sizeof(uint64);
+  //     uint64 now_addr_val = *(uint64*)(now_addr);
+  //     printf("%p: %p\n", (void*)(now_addr), (void*)(now_addr_val));
+  //   }
+  //   cur_fp = *(uint64*)(cur_fp - 2 * sizeof(uint64));
+  //   printf("--------------------------------\n");
+  // }
+
+  while(cur_fp < top && cur_fp > bot){
+    uint64 return_addr = *(uint64*)(cur_fp - 1 * sizeof(uint64));
+    printf("%p\n", (void*)(return_addr));
+
+    cur_fp = *(uint64*)(cur_fp - 2 * sizeof(uint64));
+  }
+}
