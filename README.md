@@ -2,8 +2,10 @@
 
 <!-- ☑ ☐  -->
 
-| Lab Name | Task                | Note     |
-|----------|---------------------|----------|
-| 01.util  | ☑ sleep & pingpong  | **TODO** |
-|          | ☑ find & xargs     | **TODO** |
-|          | ☑ primes           | **TODO** |
+| Lab Name   | Task                | Note     |
+|------------|---------------------|----------|
+| 01.util    | ☑ sleep & pingpong | **TODO** |
+|            | ☑ find & xargs     | **TODO** |
+|            | ☑ primes           | **TODO** |
+| 02.syscall | ☑ add trace syscall| **TODO** |
+|            | ☑ attack xv6       | **TODO** |
