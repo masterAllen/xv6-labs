@@ -9,3 +9,5 @@
 |            | ☑ primes           | **TODO** |
 | 02.syscall | ☑ add trace syscall| **TODO** |
 |            | ☑ attack xv6       | **TODO** |
+| 03.pagetable | ☑ add ugetpid syscall | **TODO** |
+|  | ☑ print pagetable | **TODO** |
