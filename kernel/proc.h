@@ -95,6 +95,15 @@ struct proc {
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process
 
+  // For sigalarm
+  int alarm_ticks_total;
+  int alarm_ticks_left;
+  uint64 alarm_handler;
+  struct trapframe *alarm_saved_trapframe;
+  // 为了防止 handler 执行一半的时候，ticks 又到期了
+  // 每次触发时候会标记 notcan，然后 sigreturn 后就重新标记为 can
+  int alarm_canrun; 
+
   // these are private to the process, so p->lock need not be held.
   uint64 kstack;               // Virtual address of kernel stack
   uint64 sz;                   // Size of process memory (bytes)

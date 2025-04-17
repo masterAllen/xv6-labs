@@ -132,6 +132,17 @@ found:
     return 0;
   }
 
+  // Allocate a trapframe page.
+  if((p->alarm_saved_trapframe = (struct trapframe *)kalloc()) == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+  p->alarm_handler = 0;
+  p->alarm_ticks_left = 0;
+  p->alarm_ticks_total = 0;
+  p->alarm_canrun = 1;
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -158,6 +169,15 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
+  if(p->alarm_saved_trapframe)
+    kfree((void*)p->alarm_saved_trapframe);
+  p->alarm_saved_trapframe = 0;
+
+  p->alarm_handler = 0;
+  p->alarm_ticks_left = 0;
+  p->alarm_ticks_total = 0;
+  p->alarm_canrun = 0;
+
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
@@ -298,6 +318,7 @@ fork(void)
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
+  *(np->alarm_saved_trapframe) = *(p->alarm_saved_trapframe);
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;

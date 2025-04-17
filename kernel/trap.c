@@ -77,9 +77,32 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
+  if(which_dev == 2) {
+    // printf("alarm_ticks_total: %d, alarm_ticks_left: %d\n", p->alarm_ticks_total, p->alarm_ticks_left);
+    if(p->alarm_ticks_total > 0) {
+      p->alarm_ticks_left--;
 
+      // 到点了，sigalarm 要触发
+      if(p->alarm_ticks_left == 0 && p->alarm_canrun == 1) {
+        // 因为是周期执行，所以触发一次时候需要把 alarm_ticks_left 重新变回去
+        p->alarm_ticks_left = p->alarm_ticks_total;
+
+        // 开始执行 handler 了，canrun 标记为 false
+        p->alarm_canrun = 0;
+
+        // 保存 trapframe
+        *(p->alarm_saved_trapframe) = *(p->trapframe);
+
+        p->trapframe->epc = p->alarm_handler;
+        goto make_usertrap;
+      }
+    }
+
+    // 没进入上面最后的条件，说明之前的程序正常走，即内核 yield，跳转回用户
+    yield();
+  }
+
+make_usertrap:
   usertrapret();
 }
 
