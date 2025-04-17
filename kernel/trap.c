@@ -49,8 +49,9 @@ usertrap(void)
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
-  
-  if(r_scause() == 8){
+
+  uint64 scause = r_scause();
+  if(scause == 8){
     // system call
 
     if(killed(p))
@@ -67,8 +68,48 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if(scause == 0xf) {
+    // 缺页，尝试 COW
+    // stval 是一个 CSR（Control and Status Register），当陷入（trap）发生时，它会保存与陷阱相关的额外信息
+    // 如果是 访问无效地址（例如页错误），stval 保存那个无效的虚拟地址。
+    uint64 oldpage_va = r_stval();
+    oldpage_va = PGROUNDDOWN(oldpage_va);
+    
+    pagetable_t pagetable = p->pagetable;
+    pte_t *pte = walk(pagetable, oldpage_va, 0);
+
+    uint flags = PTE_FLAGS(*pte);
+    // printf("usertrap(): pte: %p\n", (void*)pte);
+    // printf("PTE_V: %ld, PTE_COW_W: %ld\n", flags & PTE_V, flags & PTE_COW_W);
+
+    // 处理 COW：页表项存在、Valid、COW标记了可写
+    if ((flags & PTE_V) && (flags & PTE_COW_W)) {
+      uint64 newpage_pa = (uint64)kalloc();
+      if (newpage_pa == 0) {
+        goto trap_exit;
+      }
+
+      uint64 oldpage_pa = PTE2PA(*pte);
+      memmove((void*)newpage_pa, (void*)oldpage_pa, PGSIZE);
+
+      // 此时的页表，重新写上 PTE_W，去掉 PTE_COW_W
+      flags = flags & ~PTE_COW_W;
+      flags = flags | PTE_W;
+
+      if(mappages(pagetable, oldpage_va, PGSIZE, newpage_pa, flags) != 0){
+        goto trap_exit;
+      }
+      // 这是才重新写入页表项
+      *pte = PA2PTE(newpage_pa) | flags;
+
+    } else {
+
+      goto trap_exit; 
+    }
+
   } else {
-    printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
+  trap_exit:
+    printf("usertrap(): unexpected scause 0x%lx pid=%d\n", scause, p->pid);
     printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
     setkilled(p);
   }

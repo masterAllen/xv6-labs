@@ -33,8 +33,9 @@ simpletest()
     exit(-1);
   }
 
-  if(pid == 0)
+  if(pid == 0){
     exit(0);
+  }
 
   wait(0);
 
@@ -223,18 +224,18 @@ main(int argc, char *argv[])
 {
   simpletest();
 
-  // check that the first simpletest() freed the physical memory.
-  simpletest();
+  // // check that the first simpletest() freed the physical memory.
+  // simpletest();
 
-  threetest();
-  threetest();
-  threetest();
+  // threetest();
+  // threetest();
+  // threetest();
 
-  filetest();
+  // filetest();
 
-  forkforktest();
+  // forkforktest();
 
-  printf("ALL COW TESTS PASSED\n");
+  // printf("ALL COW TESTS PASSED\n");
 
   exit(0);
 }

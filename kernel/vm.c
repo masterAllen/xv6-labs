@@ -160,8 +160,10 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V)
+    if((*pte & PTE_V) && !(*pte & PTE_COW_W)) {
+      printf("mappages: %p\n", (void*)pte);
       panic("mappages: remap");
+    }
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -303,6 +305,15 @@ uvmfree(pagetable_t pagetable, uint64 sz)
   freewalk(pagetable);
 }
 
+void print_flags(uint64 flags) {
+  printf("PTE_V: %d, ", flags & PTE_V ? 1: 0);
+  printf("PTE_R: %d, ", flags & PTE_R ? 1: 0);
+  printf("PTE_W: %d, ", flags & PTE_W ? 1: 0);
+  printf("PTE_X: %d, ", flags & PTE_X ? 1: 0);
+  printf("PTE_U: %d, ", flags & PTE_U ? 1: 0);
+  printf("PTE_COW_W: %d\n", flags & PTE_COW_W ? 1: 0);
+}
+
 // Given a parent process's page table, copy
 // its memory into a child's page table.
 // Copies both the page table and the
@@ -315,20 +326,31 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
+
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+
+    // printf("uvmcopy: pa: %p, ", (void*)pa);
+    // print_flags(flags);
+
+    // 更改为 Copy On Write
+    // if((mem = kalloc()) == 0)
+    //   goto err;
+
+    // 清空 PTE_W，并设置 PTE_COW_W，为了以后的缺页处理
+    if (flags & PTE_W) {
+      flags = flags & ~PTE_W;
+      flags = flags | PTE_COW_W;
+    }
+    *pte = PA2PTE(pa) | flags | PTE_V;
+
+    if(mappages(new, i, PGSIZE, pa, flags) != 0){
       goto err;
     }
   }
