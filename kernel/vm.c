@@ -336,12 +336,17 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
 
-    // printf("uvmcopy: pa: %p, ", (void*)pa);
-    // print_flags(flags);
-
     // 更改为 Copy On Write
     // if((mem = kalloc()) == 0)
     //   goto err;
+
+    // char* mem;
+    // if((mem = kalloc()) == 0)
+    //   goto err;
+    // memmove(mem, (char*)pa, PGSIZE);
+    // if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
+    //   kfree(mem);
+    // }
 
     // 清空 PTE_W，并设置 PTE_COW_W，为了以后的缺页处理
     if (flags & PTE_W) {
@@ -350,9 +355,14 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     }
     *pte = PA2PTE(pa) | flags | PTE_V;
 
+    // printf("uvmcopy: va: %p, pa: %p, ", (void*)i, (void*)pa);
+    // print_flags(flags);
+
     if(mappages(new, i, PGSIZE, pa, flags) != 0){
+      printf("uvmcopy: mappages failed\n");
       goto err;
     }
+    kadd_ref_count((void*)pa);
   }
   return 0;
 

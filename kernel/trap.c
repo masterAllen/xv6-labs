@@ -101,16 +101,41 @@ usertrap(void)
       }
       // 这是才重新写入页表项
       *pte = PA2PTE(newpage_pa) | flags;
+      // printf("pid=%d usertrap(): oldpage_va: %p, newpage_pa: %p\n", p->pid, (void*)oldpage_va, (void*)newpage_pa);
+      // printf("PTE_V: %d, ", flags & PTE_V ? 1: 0);
+      // printf("PTE_R: %d, ", flags & PTE_R ? 1: 0);
+      // printf("PTE_W: %d, ", flags & PTE_W ? 1: 0);
+      // printf("PTE_X: %d, ", flags & PTE_X ? 1: 0);
+      // printf("PTE_U: %d, ", flags & PTE_U ? 1: 0);
+      // printf("PTE_COW_W: %d\n", flags & PTE_COW_W ? 1: 0);
+
+      kfree((void*)oldpage_pa);
 
     } else {
-
+      printf("Not COW\n");
       goto trap_exit; 
     }
-
   } else {
   trap_exit:
     printf("usertrap(): unexpected scause 0x%lx pid=%d\n", scause, p->pid);
     printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
+
+    // uint64 oldpage_va = r_stval();
+    // oldpage_va = PGROUNDDOWN(oldpage_va);
+    
+    // pagetable_t pagetable = p->pagetable;
+    // pte_t *pte = walk(pagetable, oldpage_va, 0);
+    // uint64 oldpage_pa = PTE2PA(*pte);
+    // printf("usertrap(): oldpage_pa: %p\n", (void*)oldpage_pa);
+
+    // uint flags = PTE_FLAGS(*pte);
+    // printf("PTE_V: %d, ", flags & PTE_V ? 1: 0);
+    // printf("PTE_R: %d, ", flags & PTE_R ? 1: 0);
+    // printf("PTE_W: %d, ", flags & PTE_W ? 1: 0);
+    // printf("PTE_X: %d, ", flags & PTE_X ? 1: 0);
+    // printf("PTE_U: %d, ", flags & PTE_U ? 1: 0);
+    // printf("PTE_COW_W: %d\n", flags & PTE_COW_W ? 1: 0);
+
     setkilled(p);
   }
 

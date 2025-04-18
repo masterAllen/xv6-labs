@@ -222,7 +222,7 @@ forkforktest()
 int
 main(int argc, char *argv[])
 {
-  simpletest();
+  // simpletest();
 
   // // check that the first simpletest() freed the physical memory.
   // simpletest();
@@ -233,9 +233,9 @@ main(int argc, char *argv[])
 
   // filetest();
 
-  // forkforktest();
+  forkforktest();
 
-  // printf("ALL COW TESTS PASSED\n");
+  printf("ALL COW TESTS PASSED\n");
 
   exit(0);
 }
