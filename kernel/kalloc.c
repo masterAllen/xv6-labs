@@ -114,3 +114,11 @@ kadd_ref_count(void *pa)
   ref_count.ref_count[(uint64)pa / PGSIZE]++;
   release(&ref_count.lock);
 }
+
+void
+ksub_ref_count(void *pa)
+{
+  acquire(&ref_count.lock);
+  ref_count.ref_count[(uint64)pa / PGSIZE]--;
+  release(&ref_count.lock);
+}

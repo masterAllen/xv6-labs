@@ -109,6 +109,9 @@ usertrap(void)
       // printf("PTE_U: %d, ", flags & PTE_U ? 1: 0);
       // printf("PTE_COW_W: %d\n", flags & PTE_COW_W ? 1: 0);
 
+      // 这里要用 kfree，因为父进程可能已经释放过这个物理页了
+      // 所以可能子进程不用这个物理页，它就该被 free 掉了，而不是单纯地就计数减去一
+      // ksub_ref_count((void*)oldpage_pa);
       kfree((void*)oldpage_pa);
 
     } else {

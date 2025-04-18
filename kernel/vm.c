@@ -398,13 +398,57 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     if(va0 >= MAXVA)
       return -1;
     pte = walk(pagetable, va0, 0);
-    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 ||
-       (*pte & PTE_W) == 0)
+    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0) {
       return -1;
+    }
+
+    int is_cow = 0;
+    if((*pte & PTE_W) == 0) {
+      if ((*pte & PTE_COW_W) == 0) {
+        return -1;
+      } else {
+        is_cow = 1;
+      }
+    }
     pa0 = PTE2PA(*pte);
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
+
+    if (is_cow) {
+      // COW
+      uint64 newpage_pa = (uint64)kalloc();
+      if (newpage_pa == 0) {
+        return -1;
+      }
+
+      uint flags = PTE_FLAGS(*pte);
+      uint64 oldpage_pa = PTE2PA(*pte);
+      // 这里是和普通 COW 的区别
+      // 因为这里后续会更改这个地址的内容，如果现在单纯拷贝旧数据，后面还要进行修改，比较浪费
+      // memmove((void*)newpage_pa, (void*)oldpage_pa, PGSIZE);
+      if (n != PGSIZE) {
+        memmove((void*)newpage_pa, (void*)oldpage_pa, PGSIZE);
+      }
+
+      // 此时的页表，重新写上 PTE_W，去掉 PTE_COW_W
+      flags = flags & ~PTE_COW_W;
+      flags = flags | PTE_W;
+
+      if(mappages(pagetable, va0, PGSIZE, newpage_pa, flags) != 0){
+        return -1;
+      }
+      // 这是才重新写入页表项
+      *pte = PA2PTE(newpage_pa) | flags;
+
+      // 这里要用 kfree，因为父进程可能已经释放过这个物理页了
+      // 所以可能子进程不用这个物理页，它就该被 free 掉了，而不是单纯地就计数减去一
+      // ksub_ref_count((void*)oldpage_pa);
+      kfree((void*)oldpage_pa);
+
+      // 这里也是，pa0 表示要修改的物理地址，所以应该用新的页表物理地址了
+      pa0 = newpage_pa;
+    }
     memmove((void *)(pa0 + (dstva - va0)), src, n);
 
     len -= n;

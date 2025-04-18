@@ -222,16 +222,16 @@ forkforktest()
 int
 main(int argc, char *argv[])
 {
-  // simpletest();
+  simpletest();
 
-  // // check that the first simpletest() freed the physical memory.
-  // simpletest();
+  // check that the first simpletest() freed the physical memory.
+  simpletest();
 
-  // threetest();
-  // threetest();
-  // threetest();
+  threetest();
+  threetest();
+  threetest();
 
-  // filetest();
+  filetest();
 
   forkforktest();
 
