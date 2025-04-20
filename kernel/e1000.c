@@ -19,6 +19,7 @@ static char *rx_bufs[RX_RING_SIZE];
 static volatile uint32 *regs;
 
 struct spinlock e1000_lock;
+struct spinlock e1000_rx_lock;
 
 // called by pci_init().
 // xregs is the memory address at which the
@@ -29,7 +30,7 @@ e1000_init(uint32 *xregs)
   int i;
 
   initlock(&e1000_lock, "e1000");
-
+  initlock(&e1000_rx_lock, "e1000_rx");
   regs = xregs;
 
   // Reset the device
@@ -102,7 +103,28 @@ e1000_transmit(char *buf, int len)
   // a pointer so that it can be freed after send completes.
   //
 
-  
+  acquire(&e1000_lock);
+
+  uint32 idx = regs[E1000_TDT];
+  if ((tx_ring[idx].status & E1000_TXD_STAT_DD) == 0) {
+    release(&e1000_lock);
+    return -1;
+  }
+
+  if (tx_ring[idx].addr != 0) {
+    kfree((void*)tx_ring[idx].addr);
+  }
+
+  tx_ring[idx].addr = (uint64)buf;
+  tx_ring[idx].length = len;
+  tx_ring[idx].status = 0;
+  tx_ring[idx].css = 0;
+  tx_ring[idx].cmd = E1000_TXD_CMD_RS | E1000_TXD_CMD_EOP;
+  tx_ring[idx].special = 0;
+
+  regs[E1000_TDT] = (regs[E1000_TDT] + 1) % TX_RING_SIZE;
+
+  release(&e1000_lock);
   return 0;
 }
 
@@ -116,6 +138,25 @@ e1000_recv(void)
   // Create and deliver a buf for each packet (using net_rx()).
   //
 
+  // acquire(&e1000_rx_lock);
+  while (1) {
+    uint32 idx = regs[E1000_RDT];
+    idx = (idx + 1) % RX_RING_SIZE;
+
+    if ((rx_ring[idx].status & E1000_RXD_STAT_DD) == 0) {
+      break;
+    }
+
+    net_rx(rx_bufs[idx], rx_ring[idx].length);
+
+    rx_bufs[idx] = kalloc();
+
+    rx_ring[idx].addr = (uint64)rx_bufs[idx];
+    rx_ring[idx].status = 0;
+
+    regs[E1000_RDT] = idx;
+  }
+  // release(&e1000_rx_lock);
 }
 
 void
