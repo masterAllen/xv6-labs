@@ -191,7 +191,24 @@ ip_rx(char *buf, int len)
   //
   // Your code here.
   //
+  struct eth *ineth = (struct eth *) ((char *)buf + 0);
+  struct ip *inip = (struct ip *) ((char *)buf + 14);
+  if(inip->ip_p != IPPROTO_UDP)
+    return;
   
+  struct udp *inudp = (struct udp *) ((char *)buf + 34);
+
+ acquire(&netlock);
+  struct bound_port *bp = find_bound_port(dport);
+  if(bp == 0){
+    printf("ip_rx: no process bound to port %d\n", dport);
+    kfree(buf);
+    release(&netlock);
+    return;
+  }
+  add_packet_to_queue(bp, buf, len);
+  wakeup(bp);
+  release(&netlock); 
 }
 
 //
