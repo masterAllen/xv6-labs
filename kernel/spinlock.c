@@ -52,8 +52,78 @@ initlock(struct spinlock *lk, char *name)
 #ifdef LAB_LOCK
   lk->nts = 0;
   lk->n = 0;
+  lk->nts2 = 0;
   findslot(lk);
 #endif  
+}
+// Acquire the lock.
+// Loops (spins) until the lock is acquired.
+void
+acquire3(struct spinlock *lk)
+{
+  push_off(); // disable interrupts to avoid deadlock.
+  if(holding(lk))
+    panic("acquire");
+
+#ifdef LAB_LOCK
+    __sync_fetch_and_add(&(lk->n), 1);
+#endif      
+
+  // On RISC-V, sync_lock_test_and_set turns into an atomic swap:
+  //   a5 = 1
+  //   s1 = &lk->locked
+  //   amoswap.w.aq a5, a5, (s1)
+  while(__sync_lock_test_and_set(&lk->locked, 1) != 0) {
+#ifdef LAB_LOCK
+    __sync_fetch_and_add(&(lk->nts3), 1);
+#else
+   ;
+#endif
+  }
+
+  // Tell the C compiler and the processor to not move loads or stores
+  // past this point, to ensure that the critical section's memory
+  // references happen strictly after the lock is acquired.
+  // On RISC-V, this emits a fence instruction.
+  __sync_synchronize();
+
+  // Record info about lock acquisition for holding() and debugging.
+  lk->cpu = mycpu();
+}
+
+// Acquire the lock.
+// Loops (spins) until the lock is acquired.
+void
+acquire2(struct spinlock *lk)
+{
+  push_off(); // disable interrupts to avoid deadlock.
+  if(holding(lk))
+    panic("acquire");
+
+#ifdef LAB_LOCK
+    __sync_fetch_and_add(&(lk->n), 1);
+#endif      
+
+  // On RISC-V, sync_lock_test_and_set turns into an atomic swap:
+  //   a5 = 1
+  //   s1 = &lk->locked
+  //   amoswap.w.aq a5, a5, (s1)
+  while(__sync_lock_test_and_set(&lk->locked, 1) != 0) {
+#ifdef LAB_LOCK
+    __sync_fetch_and_add(&(lk->nts2), 1);
+#else
+   ;
+#endif
+  }
+
+  // Tell the C compiler and the processor to not move loads or stores
+  // past this point, to ensure that the critical section's memory
+  // references happen strictly after the lock is acquired.
+  // On RISC-V, this emits a fence instruction.
+  __sync_synchronize();
+
+  // Record info about lock acquisition for holding() and debugging.
+  lk->cpu = mycpu();
 }
 
 // Acquire the lock.
@@ -172,8 +242,8 @@ snprint_lock(char *buf, int sz, struct spinlock *lk)
 {
   int n = 0;
   if(lk->n > 0) {
-    n = snprintf(buf, sz, "lock: %s: #test-and-set %d #acquire() %d\n",
-                 lk->name, lk->nts, lk->n);
+    n = snprintf(buf, sz, "lock: %s: #test-and-set %d #acquire() %d #test-and-set2() %d #test-and-set3() %d\n",
+                 lk->name, lk->nts, lk->n, lk->nts2, lk->nts3);
   }
   return n;
 }

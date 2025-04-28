@@ -8,6 +8,8 @@ struct spinlock {
 #ifdef LAB_LOCK
   int nts;
   int n;
+  int nts2;
+  int nts3;
 #endif
 };
 
