@@ -416,7 +416,51 @@ bmap(struct inode *ip, uint bn)
     brelse(bp);
     return addr;
   }
+  bn -= NINDIRECT;
 
+  if(bn < NDOUBLE){
+    uint bn1 = bn / NINDIRECT;
+    uint bn2 = bn % NINDIRECT;
+
+    // 创建第一级间接块
+    if((addr = ip->addrs[NDIRECT+1]) == 0){
+      addr = balloc(ip->dev);
+      if(addr == 0)
+        return 0;
+      ip->addrs[NDIRECT+1] = addr;
+    }
+    // 找到第一级间接块指针
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+
+    // 创建第二级间接块
+    if((addr = a[bn1]) == 0){
+      addr = balloc(ip->dev);
+      if(addr == 0)
+        return 0;
+      a[bn1] = addr;
+      // 这里需要写进日志，因为写内容了
+      log_write(bp);
+    }
+    // 而且必须这里才可以释放 bp，否则可能 bp->data 会被改掉
+    brelse(bp);
+
+    // 找到第二级间接块指针
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+
+    // 第二级间接块指针-->实际内容
+    if((addr = a[bn2]) == 0){
+      addr = balloc(ip->dev);
+      if(addr){
+        a[bn2] = addr;
+        log_write(bp);
+      }
+    }
+    brelse(bp);
+    return addr;
+  }
+  
   panic("bmap: out of range");
 }
 
@@ -446,6 +490,31 @@ itrunc(struct inode *ip)
     brelse(bp);
     bfree(ip->dev, ip->addrs[NDIRECT]);
     ip->addrs[NDIRECT] = 0;
+  }
+
+  if(ip->addrs[NDIRECT+1]) {
+    bp = bread(ip->dev, ip->addrs[NDIRECT+1]);
+    a = (uint*)bp->data;
+
+    // 遍历第一级块
+    for(j = 0; j < NINDIRECT; j++){
+      if(a[j]) {
+        // 遍历第二级块
+        struct buf *bp2 = bread(ip->dev, a[j]);
+        uint* aa = (uint*)bp2->data;
+
+        for(int jj = 0; jj < NINDIRECT; jj++){
+          if(aa[jj]) {
+            bfree(ip->dev, aa[jj]);
+          }
+        }
+        bfree(ip->dev, a[j]);
+        brelse(bp2);
+      }
+    }
+    bfree(ip->dev, ip->addrs[NDIRECT+1]);
+    brelse(bp);
+    ip->addrs[NDIRECT+1] = 0;
   }
 
   ip->size = 0;
@@ -507,6 +576,8 @@ writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
 {
   uint tot, m;
   struct buf *bp;
+
+  // printf("writei: off: %d, n: %d, ip->size: %d, MAXFILE*BSIZE: %ld\n", off, n, ip->size, MAXFILE*BSIZE);
 
   if(off > ip->size || off + n < off)
     return -1;

@@ -341,6 +341,8 @@ sys_open(void)
     return -1;
   }
 
+  // 这里是分配文件描述符，即分配的文件描述符 和 一个内存块(filealloc) 绑定
+  // 这里和 ip 无关，后续才会把 ip 的一些属性放入在内存块中
   if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
     if(f)
       fileclose(f);
@@ -349,6 +351,42 @@ sys_open(void)
     return -1;
   }
 
+  if (!(omode & O_NOFOLLOW)) {
+    // 软链接可能有环，所以设置深度限制次数 10
+    int depth = 10;
+
+    struct inode *ip2;
+    while (ip->type == T_SYMLINK && depth > 0) {
+
+      // 读取内容到 path，即找到链接所在的文件
+      if ((readi(ip, 0, (uint64)&path, 0, MAXPATH)) < 0) {
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+
+      // 根据 path 找到对应的 inode
+      if((ip2 = namei(path)) == 0){
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+      iunlockput(ip);
+      ip = ip2;
+      // 仿照上面，加一个这个语句
+      // 这条语句是对 inode 加锁，防止并发干扰
+      ilock(ip);
+      depth--;
+    }
+
+    if (depth <= 0) {
+      iunlockput(ip);
+      end_op();
+      return -1;
+    }
+  }
+
+  // 后面就是把 ip 的内容放入在上面的内存块中，变相的就是 fd 和 ip 绑定了起来，所以在这一步之前我们要处理好链接文件
   if(ip->type == T_DEVICE){
     f->type = FD_DEVICE;
     f->major = ip->major;
@@ -501,5 +539,38 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+uint64
+sys_symlink(void)
+{
+  char srcpath[MAXPATH], targetpath[MAXPATH];
+  struct inode *ip;
+
+  if(argstr(0, srcpath, MAXPATH) < 0 || argstr(1, targetpath, MAXPATH) < 0)
+    return -1;
+
+  // 模仿 sys_mkdir，实际上这里 begin_op 是指的日志操作
+  begin_op();
+  if((ip = create(targetpath, T_SYMLINK, 0, 0)) == 0) {
+    end_op();
+    return -1;
+  }
+
+  // 写入内容
+  // 模仿 sys_write，一步一步进入，知道 filewrite 函数，发现直接调用这一句就可以
+  // 里面的参数可以直接看 writei 函数上面的注释
+  int ret = writei(ip, 0, (uint64)srcpath, 0, strlen(srcpath)+1);
+  if(ret < 0) {
+    // 这里和 filewrite 函数中不同，那个函数中使用的是 iunlock，是因为那个函数不断循环，所以每次还要用这个 inode
+    // 这里不需要用 inode，所以使用的是 iunlockput，它里面就是 iunlock 和 iput 的结合，就最后释放掉 inode 了
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+  iunlockput(ip);
+  end_op();
+
   return 0;
 }
