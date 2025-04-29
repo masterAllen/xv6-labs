@@ -12,3 +12,4 @@
 | 03.pagetable | ☑ add ugetpid syscall | **TODO** |
 |  | ☑ print pagetable | **TODO** |
 | 04.traps | ☑ add backtrace syscall | **TODO** |
+|  | ☑ add sigalarm syscall | **TODO** |
