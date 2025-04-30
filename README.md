@@ -13,3 +13,4 @@
 |  | ☑ print pagetable | **TODO** |
 | 04.traps | ☑ add backtrace syscall | **TODO** |
 |  | ☑ add sigalarm syscall | **TODO** |
+| 05.copyonwrite | ☑ implement cow | **TODO** |
