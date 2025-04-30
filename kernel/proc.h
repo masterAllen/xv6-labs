@@ -81,6 +81,21 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+#define MAX_VMA 10
+
+struct vma {
+  uint64 start;      // 起始虚拟地址
+  uint64 end;    // 结束虚拟地址
+
+  uint64 mapped_start; // 还在映射的部分起始地址
+  uint64 mapped_end;   // 还在映射的部分结束地址
+  int prot;         // 权限（读/写）
+  int flags;        // MAP_SHARED or MAP_PRIVATE
+  struct file *f;   // 映射的文件指针
+  int offset;       // 文件偏移量
+  int valid;        // 标记这个 vma 是否有效
+};
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -104,4 +119,7 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  // 为了 mmap
+  struct vma vmas[MAX_VMA];
 };

@@ -88,8 +88,15 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
   if(va >= MAXVA)
     panic("walk");
 
+  int printed = (uint64)pagetable == 0x87f45000 && va > 0xb000;
   for(int level = 2; level > 0; level--) {
     pte_t *pte = &pagetable[PX(level, va)];
+    if (printed) {
+      // print_pte(pagetable, 0x10000);
+      printf("level = %d, pagetable = %p, pte = %p, ", level, (void*)pagetable, (void*)pte);
+      uint flags = PTE_FLAGS(*pte);
+      printf("PTE_V: %ld, PTE_M: %ld, PTE_R: %ld, PTE_W: %ld, PTE_X: %ld\n", flags & PTE_V, flags & PTE_M, flags & PTE_R, flags & PTE_W, flags & PTE_X);
+    }
     if(*pte & PTE_V) {
       pagetable = (pagetable_t)PTE2PA(*pte);
     } else {
@@ -160,7 +167,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V)
+    if((*pte & PTE_V) && !(*pte & PTE_M))
       panic("mappages: remap");
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
@@ -186,10 +193,17 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0)
       panic("uvmunmap: walk");
+
+    // 如果标记的是 PTE_M，那么就直接跳过，因为这些页要么是 mmap 刚标记没分配内存，要么就是 munmap 后释放后标上的
+    if((*pte & PTE_M) != 0) {
+      continue;
+    }
+
     if((*pte & PTE_V) == 0)
       panic("uvmunmap: not mapped");
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
+
     if(do_free){
       uint64 pa = PTE2PA(*pte);
       kfree((void*)pa);
@@ -281,6 +295,9 @@ freewalk(pagetable_t pagetable)
   // there are 2^9 = 512 PTEs in a page table.
   for(int i = 0; i < 512; i++){
     pte_t pte = pagetable[i];
+    if(pte & PTE_M) {
+      continue;
+    }
     if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
       // this PTE points to a lower-level page table.
       uint64 child = PTE2PA(pte);
@@ -320,13 +337,22 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
-    pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
+
+    // 如果是 PTE_M，即 mmap 的页，则不管，因为这里要么是 mmap 刚标记还没实际分配，要么是 munmap 释放后标记的
+    mem = 0;
+    if((flags & PTE_M) == 0) {
+      if((flags & PTE_V) == 0)
+        panic("uvmcopy: page not present");
+
+      pa = PTE2PA(*pte);
+      if((mem = kalloc()) == 0)
+        goto err;
+      // printf("uvmcopy: new_mem = %p, oldpa = %p\n", (void*)mem, (void*)pa);
+      memmove(mem, (char*)pa, PGSIZE);
+    }
+
+    // printf("uvmcopy: mappages(pagetable = %p, va = %p, pa = %p, PTE_M = %ld)\n", (void*)new, (void*)i, (void*)mem, flags & PTE_M);
     if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
       kfree(mem);
       goto err;
@@ -366,13 +392,13 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     if(va0 >= MAXVA)
       return -1;
     pte = walk(pagetable, va0, 0);
-    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 ||
-       (*pte & PTE_W) == 0)
+    if((*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 || (*pte & PTE_W) == 0)
       return -1;
     pa0 = PTE2PA(*pte);
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
+    // printf("memmove: src = %p, dst = %p, n = %ld\n", (void*)src, (void*)(pa0 + (dstva - va0)), n);
     memmove((void *)(pa0 + (dstva - va0)), src, n);
 
     len -= n;
@@ -448,4 +474,47 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+// 更新 PTE 权限
+// va: 虚拟地址，flag: 新的权限
+int
+update_pte(pagetable_t pagetable, uint64 va, uint flag)
+{
+  uint64 va0 = PGROUNDDOWN(va);
+  if(va0 >= MAXVA)
+    return -1;
+  pte_t *pte = walk(pagetable, va0, 0);
+
+  if(pte==0 || (*pte & PTE_V) == 0)
+    return -1;
+
+  // if((*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 || (*pte & PTE_W) == 0)
+
+  uint64 pa0 = PTE2PA(*pte);
+  *pte = PA2PTE(pa0) | flag;
+
+  return 0;
+}
+
+void
+print_pte(pagetable_t pagetable, uint64 sz) {
+  for(uint64 i = 0; i < sz; i += PGSIZE){
+    pte_t *pte = walk(pagetable, i, 0);
+    if(pte == 0)
+    {
+      printf("va = %p, pte should exist\n", (void*)i);
+      continue;
+    }
+
+    uint flags = PTE_FLAGS(*pte);
+
+    printf("va = %p, ", (void*)i);
+    printf("PTE_V = %d, ", (flags & PTE_V) ? 1 : 0);
+    printf("PTE_M = %d, ", (flags & PTE_M) ? 1 : 0);
+    printf("PTE_W = %d, ", (flags & PTE_W) ? 1 : 0);
+    printf("PTE_R = %d, ", (flags & PTE_R) ? 1 : 0);
+    printf("PTE_U = %d\n", (flags & PTE_U) ? 1 : 0);
+  }
+  printf("----------------------------------\n\n");
 }

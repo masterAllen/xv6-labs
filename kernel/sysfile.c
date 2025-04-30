@@ -503,3 +503,208 @@ sys_pipe(void)
   }
   return 0;
 }
+
+uint64
+sys_mmap(void)
+{
+  // mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset);
+  uint64 addr;
+  size_t len;
+  int prot;
+  int flags;
+  int fd;
+  int offset;
+  argaddr(0, &addr);
+  argaddr(1, &len);
+  argint(2, &prot);
+  argint(3, &flags);
+  argint(4, &fd);
+  argint(5, &offset);
+
+  // 题目为了简单，addr 固定是 0，offset 也是 0
+  if (addr != 0 || offset != 0) {
+    printf("addr: %p, offset: %d\n", (void *)addr, offset);
+    return -1;
+  }
+
+  struct proc *p = myproc();
+
+  // 如果文件只读、但是 mmap 中：MAP_SHARED 且 PROT_WRITE，则报错
+  if (p->ofile[fd]->writable == 0 && (flags & MAP_SHARED) && (prot & PROT_WRITE)) {
+    printf("mmap: file is read-only, but mmap with MAP_SHARED and PROT_WRITE\n");
+    return -1;
+  }
+
+  acquire(&p->lock);
+  // 寻找一个空的 VMA
+  for (int i = 0; i < MAX_VMA; i++) {
+    if (p->vmas[i].valid == 0) {
+
+      // 寻找虚拟内存，参考 sys_sbrk，这样其实有问题，因为如果有回收那块虚拟内存就再也不会利用
+      // 但为了方便，就这样做了。这也是 xv6 的宗旨，为了方便牺牲性能。实际上可以用 bitmap 等进行虚拟空间管理
+      uint64 va = PGROUNDUP(p->sz);
+      // 物理地址，从文件指针开始找: file->inode->bread->bdata->phyaddr
+      // 但先不需要了，因为可以映射一个假的物理地址，到时候缺页了，直接通过文件指针找
+      uint64 pa = 0;
+
+      // TODO: 如果 len 不是 PGSIZE 的整数倍？
+      uint64 append_sz = len + len%PGSIZE;
+      // 开始映射
+      for (int j = 0; j < append_sz; j += PGSIZE) {
+        // printf("mmap: va = %p, pa = %p, f = %p\n", (void*)(va+j), (void*)pa, p->ofile[fd]);
+
+        // 注意这里不要根据 prot 设置 flags
+        // 以 PROT_READ 为例，如果此时把 PTE_R 标记为 1，当程序想要访问这个页表，发现标记为是 PTE_V|PTE_R
+        // 此时程序认为这个页表非常合理，所以 usertrap 就不是读取页错误了，而是正常访问物理地址，显然出错
+        // 正确做法是：先不标记为 PTE_R，这样就会触发读取页错误（想要读取页，但页没有权限），此时在里面使用记录的 vmas[i].prot 来检测
+        uint flags = PTE_V | PTE_U | PTE_M;
+
+        if(mappages(p->pagetable, va+j, PGSIZE, pa, flags) != 0){
+          release(&p->lock);
+          return -1;
+        }
+      }
+      p->sz += append_sz;
+
+      p->vmas[i].valid = 1;
+      p->vmas[i].prot = prot;
+      p->vmas[i].flags = flags;
+      p->vmas[i].f = p->ofile[fd];
+      p->vmas[i].offset = offset;
+      p->vmas[i].start = va;
+      p->vmas[i].end = va + len;
+      p->vmas[i].mapped_start = va;
+      p->vmas[i].mapped_end = va + len;
+
+      // 添加文件引用
+      filedup(p->vmas[i].f);
+      release(&p->lock);
+      return va;
+    }
+  }
+  release(&p->lock);
+  return -1;
+}
+
+uint64
+sys_munmap(void)
+{
+  uint64 start;
+  size_t len;
+  argaddr(0, &start);
+  argaddr(1, &len);
+
+  // // 临时调试：用户程序指向 munmap(0,0) 可以打印进程的虚拟地址及 flags 信息
+  // if (start == 0 && len == 0) {
+  //   struct proc *p = myproc();
+
+  //   for(uint64 i = 0; i < p->sz; i += PGSIZE){
+  //     pte_t *pte = walk(p->pagetable, i, 0);
+  //     if(pte == 0)
+  //       panic("uvmcopy: pte should exist");
+
+  //     uint64 pa = PTE2PA(*pte);
+  //     uint flags = PTE_FLAGS(*pte);
+
+  //     printf("va = %p, pa = %p, ", (void*)i, (void*)pa);
+  //     printf("PTE_V = %d, ", (flags & PTE_V) ? 1 : 0);
+  //     printf("PTE_M = %d, ", (flags & PTE_M) ? 1 : 0);
+  //     printf("PTE_W = %d, ", (flags & PTE_W) ? 1 : 0);
+  //     printf("PTE_R = %d, ", (flags & PTE_R) ? 1 : 0);
+  //     printf("PTE_U = %d\n", (flags & PTE_U) ? 1 : 0);
+  //   }
+  //   printf("----------------------------------\n\n");
+  //   return 0;
+  // }
+
+  uint64 end = start + len;
+
+  if (start % PGSIZE != 0 || end % PGSIZE != 0) {
+    printf("munmap: start is not page-aligned, or end is not page-aligned\n");
+    return -1;
+  }
+
+  struct proc* p = myproc();
+
+  // 这里坑了很久，如果加锁，那么后面会 panic，为什么这里不应该 acquire ??
+  // acquire(&p->lock);
+
+  // 遍历 vmas，找到对应的 vma
+  for (int i = 0; i < MAX_VMA; i++) {
+    // printf("munmap: vmas[%d].valid = %d, vmas[%d].start = %p, vmas[%d].end = %p\n", i, p->vmas[i].valid, i, (void*)p->vmas[i].start, i, (void*)p->vmas[i].end);
+    if (p->vmas[i].valid == 1 && p->vmas[i].start <= start && p->vmas[i].end >= end) {
+      // 找到对应的 vma，遍历每一页，解除映射
+
+      // 题目进行了精简，不可能有空洞，所以我们这里可以比较简单的调整参数
+      if (p->vmas[i].mapped_start == start) {
+        p->vmas[i].mapped_start = end;
+      } else if (p->vmas[i].mapped_end == end) {
+        p->vmas[i].mapped_end = start;
+      }
+
+      // printf("munmap: vmas[%d].mapped_start = %p, vmas[%d].mapped_end = %p\n", i, (void*)p->vmas[i].mapped_start, i, (void*)p->vmas[i].mapped_end);
+
+      // 如果是 MAP_SHARED，并且有过改变，那么就写回文件
+      if ((p->vmas[i].flags & MAP_SHARED)) {
+        for (int j = start; j < end; j += PGSIZE) {
+          uint64 va = j;
+          pte_t *pte = walk(p->pagetable, va, 0);
+          uint flags = PTE_FLAGS(*pte);
+
+          if((pte==0) || (flags & PTE_V) == 0)
+            panic("mmap_writeback: walk failed");
+
+          // 写回这个文件
+          if((flags & PTE_D)){ 
+            // 如果 PTE_W 没有设置，则报错
+            if (!(flags & PTE_W)) {
+              panic("PTE_W is not set, but page is changed!");
+            }
+
+            // printf("PTE_D is set, write back to file\n");
+            uint offset = va - p->vmas[i].start;
+            if (file_from_pa(p->vmas[i].f, PTE2PA(*pte), offset, PGSIZE) == -1) {
+            // if (file_from_pa(p->vmas[i].f, va, offset, PGSIZE) == -1) {
+              panic("write back to file failed!");
+            }
+            // filewrite(p->vmas[i].f, va, PGSIZE);
+          }
+        }
+      }
+
+      // 这里本来直接调用 uvmunmap 的，但是后来发现：对于那些实际还没有申请的内存，释放他们就会有问题
+      // uvmunmap(p->pagetable, start, len/PGSIZE, 1);
+      for (int j = start; j < end; j += PGSIZE) {
+        uint64 va = j;
+        pte_t *pte = walk(p->pagetable, va, 0);
+        uint flags = PTE_FLAGS(*pte);
+
+        // 没有 PTE_M，才是实际申请的内存
+        if ((flags & PTE_M) == 0) {
+          uint64 pa = PTE2PA(*pte);
+          kfree((void*)pa);
+        }
+
+        // 很重要：这里要标记为 PTE_M，然后 uvmcopy 和 uvmfree 会调整
+        *pte = 0 | PTE_M;
+      }
+
+      // 如果解除了全部，需要减小对应文件的指针，而且把这个 valid 变为 0
+      // if (p->vmas[i].mapped_start == start && p->vmas[i].mapped_end == end) {
+      if(p->vmas[i].mapped_start == p->vmas[i].mapped_end) {
+        // printf("munmap: vmas[%d].valid = 0\n", i);
+        // printf("munmap: vmas[%d].mapped_start = %p, vmas[%d].mapped_end = %p\n", i, (void*)p->vmas[i].mapped_start, i, (void*)p->vmas[i].mapped_end);
+        // printf("munmap: vmas[%d].start = %p, vmas[%d].end = %p\n", i, (void*)p->vmas[i].start, i, (void*)p->vmas[i].end);
+        // printf("munmap: start = %p, end = %p\n", (void*)start, (void*)end);
+        p->vmas[i].valid = 0;
+        fileclose(p->vmas[i].f);
+      }
+
+      // release(&p->lock);
+      return 0;
+    }
+  }
+
+  // release(&p->lock);
+  return -1;
+}

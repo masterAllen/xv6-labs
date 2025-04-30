@@ -12,6 +12,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct inode;
 
 // bio.c
 void            binit(void);
@@ -37,6 +38,9 @@ void            fileinit(void);
 int             fileread(struct file*, uint64, int n);
 int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
+void*           filepa(struct file*, uint off);
+int             file_to_pa(struct file*, uint64, uint off, int n);
+int             file_from_pa(struct file*, uint64, uint off, int n);
 
 // fs.c
 void            fsinit(int);
@@ -57,6 +61,7 @@ int             readi(struct inode*, int, uint64, uint, uint);
 void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, int, uint64, uint, uint);
 void            itrunc(struct inode*);
+void*           pai(struct inode*, uint);
 
 // ramdisk.c
 void            ramdiskinit(void);
@@ -187,7 +192,8 @@ void            vmprint(pagetable_t);
 #ifdef LAB_PGTBL
 pte_t*          pgpte(pagetable_t, uint64);
 #endif
-
+int             update_pte(pagetable_t, uint64, uint);
+void            print_pte(pagetable_t, uint64);
 // plic.c
 void            plicinit(void);
 void            plicinithart(void);

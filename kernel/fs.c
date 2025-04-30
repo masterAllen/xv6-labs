@@ -485,6 +485,7 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
       break;
     bp = bread(ip->dev, addr);
     m = min(n - tot, BSIZE - off%BSIZE);
+    // printf("readi: bp->data: %p, off: %d, dst: %p, m: %d\n", bp->data, off, (void*)dst, m);
     if(either_copyout(user_dst, dst, bp->data + (off % BSIZE), m) == -1) {
       brelse(bp);
       tot = -1;
@@ -513,12 +514,14 @@ writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
   if(off + n > MAXFILE*BSIZE)
     return -1;
 
+  // printf("writei: user_src: %d, src: %p, off: %d, n: %d\n", user_src, (void*)src, off, n);
   for(tot=0; tot<n; tot+=m, off+=m, src+=m){
     uint addr = bmap(ip, off/BSIZE);
     if(addr == 0)
       break;
     bp = bread(ip->dev, addr);
     m = min(n - tot, BSIZE - off%BSIZE);
+    // printf("writei: bp->data: %p, off: %d, src: %p, m: %d\n", bp->data, off, (void*)src, m);
     if(either_copyin(bp->data + (off % BSIZE), user_src, src, m) == -1) {
       brelse(bp);
       break;
@@ -694,4 +697,35 @@ struct inode*
 nameiparent(char *path, char *name)
 {
   return namex(path, 1, name);
+}
+
+void*
+pai(struct inode *ip, uint off)
+{
+  struct buf *bp;
+  if(off > ip->size)
+    return 0;
+
+  uint blockno = bmap(ip, off/BSIZE);
+  printf("pai: ip: %p, off: %d, blockno: %d\n", ip, off, blockno);
+  if(blockno == 0)
+    return 0;
+
+  bp = bread(ip->dev, blockno);
+  void* pa = bp->data + (off % BSIZE);
+
+  // 打印 bp->data 的值
+  printf("pai: bp->data: %p, BSIZE: %d, PGSIZE: %d\n", bp->data, BSIZE, PGSIZE);
+  int n = PGSIZE/BSIZE;
+  for (int i = 0; i < n; i++) {
+    printf("pai: bp->data[%d]: ", i);
+    for (int j = 0; j < BSIZE; j++) {
+      printf("%x ", ((char*)bp->data)[BSIZE*i + j]);
+    }
+    printf("\n");
+  }
+
+  brelse(bp);
+
+  return (void*)pa;
 }

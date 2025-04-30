@@ -180,3 +180,77 @@ filewrite(struct file *f, uint64 addr, int n)
   return ret;
 }
 
+
+void*
+filepa(struct file *f, uint off)
+{
+  return pai(f->ip, off);
+}
+
+// 从文件中搬运数据到物理地址，不改变偏移量
+int
+file_to_pa(struct file *f, uint64 addr, uint off, int n)
+{
+  int r = 0;
+
+  // printf("file_to_pa: f->ip->size: %d, addr: %p, off: %d, n: %d\n", f->ip->size, (void*)addr, off, n);
+  // 有可能大于文件大小，甚至偏移量都有可能大于文件大小
+  if(off > f->ip->size)
+    return 0;
+  if(off + n > f->ip->size)
+    n = f->ip->size - off;
+
+  if(f->readable == 0)
+    return -1;
+
+  if(f->type != FD_INODE)
+    return -1;
+
+  ilock(f->ip);
+  r = readi(f->ip, 0, addr, off, n);
+  iunlock(f->ip);
+  return r;
+}
+
+// 从物理地址读取数据到文件，不改变偏移量
+int
+file_from_pa(struct file *f, uint64 addr, uint off, int n)
+{
+  // 参考 filewrite
+  int r, ret = 0;
+
+  // printf("file_from_pa: f->ip->size: %d, addr: %p, off: %d, n: %d\n", f->ip->size, (void*)addr, off, n);
+
+  if(f->writable == 0)
+    return -1;
+
+  if(f->type != FD_INODE)
+    return -1;
+  
+  if(off+n > f->ip->size)
+    n = f->ip->size - off;
+
+  int max = ((MAXOPBLOCKS-1-1-2) / 2) * BSIZE;
+  int i = 0;
+  // 这里很关键！必须分块写入，否则 log 写入有问题，明明知道参考 filewrite，该函数的确是分块写入，但我一开始没好好照着写，导致一直出错
+  while(i < n){
+    int n1 = n - i;
+    if(n1 > max)
+      n1 = max;
+
+    // printf("file_from_pa: n1=%d, i=%d, off=%d\n", n1, i, off);
+    begin_op();
+    ilock(f->ip);
+    r = writei(f->ip, 0, addr + i, off + i, n1);
+    iunlock(f->ip);
+    end_op();
+
+    if(r != n1){
+      // error from writei
+      break;
+    }
+    i += r;
+  }
+  ret = (i == n ? n : -1);
+  return ret;
+}

@@ -363,6 +363,9 @@ typedef uint64 *pagetable_t; // 512 PTEs
 #define PTE_X (1L << 3)
 #define PTE_U (1L << 4) // user can access
 
+#define PTE_D (1L << 7) // dirty
+#define PTE_M (1L << 8) // 自定义，用于表示是否是 mmap 的页
+
 // shift a physical address to the right place for a PTE.
 #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)
 

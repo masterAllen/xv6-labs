@@ -146,6 +146,11 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  // vmas 
+  for (int i = 0; i < MAX_VMA; ++i) {
+    p->vmas[i].valid = 0;
+  }
+
   return p;
 }
 
@@ -295,6 +300,14 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+
+  // 复制 vmas
+  for (int i = 0; i < MAX_VMA; i++){
+    memmove(&np->vmas[i], &p->vmas[i], sizeof(struct vma));
+    if(p->vmas[i].valid){
+      filedup(p->vmas[i].f);
+    }
+  }
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
