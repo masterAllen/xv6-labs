@@ -9,11 +9,11 @@
 |                 | ☑ primes                  |                                         |
 | 02.syscall      | ☑ add trace syscall       | [Note02](./docs/lab02_syscall.md)     |
 |                 | ☑ attack xv6              |                                         |
-| 03.pagetable    | ☑ add ugetpid syscall     | [Note03](./docs/lab03_pagetable.md)                                |
+| 03.pagetable    | ☑ add ugetpid syscall     | [Note03](./docs/lab03_pagetable.md)   |
 |                 | ☑ print pagetable         | |
 |                 | ☑ use superpages          | 3rd most time-consuming problem |
-| 04.traps        | ☑ add backtrace syscall   | **TODO**                                |
-|                 | ☑ add sigalarm syscall    | **TODO**                                |
+| 04.traps        | ☑ add backtrace syscall   | [Note04](./docs/lab04_trap.md)   |
+|                 | ☑ add sigalarm syscall    |                                 |
 | 05.copyonwrite  | ☑ implement cow           | **TODO**                                |
 | 06.networking   | ☑ complete transmit & recv| **TODO**                                |
 |                 | ☐ udp receive             | Meaningless for me, skip it            |
