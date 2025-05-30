@@ -79,11 +79,11 @@ usertrap(void)
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2) {
     // printf("alarm_ticks_total: %d, alarm_ticks_left: %d\n", p->alarm_ticks_total, p->alarm_ticks_left);
-    if(p->alarm_ticks_total > 0) {
+    if(p->alarm_ticks_total > 0 && p->alarm_canrun == 1) {
       p->alarm_ticks_left--;
 
       // 到点了，sigalarm 要触发
-      if(p->alarm_ticks_left == 0 && p->alarm_canrun == 1) {
+      if(p->alarm_ticks_left == 0) {
         // 因为是周期执行，所以触发一次时候需要把 alarm_ticks_left 重新变回去
         p->alarm_ticks_left = p->alarm_ticks_total;
 
