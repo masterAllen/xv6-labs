@@ -15,7 +15,7 @@
 | 04.traps        | ☑ add backtrace syscall   | [Note04](./docs/lab04_trap.md)   |
 |                 | ☑ add sigalarm syscall    |                                 |
 | 05.copyonwrite  | ☑ implement cow           | **TODO**                                |
-| 06.networking   | ☑ complete transmit & recv| **TODO**                                |
+| 06.networking   | ☑ complete transmit & recv| Meaningless for me, skip it       |
 |                 | ☐ udp receive             | Meaningless for me, skip it            |
 | 07.lock         | ☑ memory allocator        | **TODO** (1st most time-consuming problem) |
 |                 | ☑ buffer cache            | **TODO**                                |
