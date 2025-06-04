@@ -115,8 +115,6 @@ void            procdump(void);
 void            swtch(struct context*, struct context*);
 
 // spinlock.c
-void            acquire2(struct spinlock*);
-void            acquire3(struct spinlock*);
 void            acquire(struct spinlock*);
 int             holding(struct spinlock*);
 void            initlock(struct spinlock*, char*);
