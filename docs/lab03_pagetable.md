@@ -282,6 +282,8 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free) {
 }
 ```
 
+### A subtle detail: allow hole in virtual address
+
 So, is that all? Not quite. There's a subtle and easily overlooked modification that can be quite tricky to debug.
 
 Superpages may cause virtual addresses to be non-contiguous. Consider the following situation: if a user's size is `0x5000` now, then the user requests a superpage, the starting virtual address of the new memory will be aligned to `0x200000` (since a superpage is 2MB). As a result, there will be a gap between `0x5000` and `0x200000`: a hole in the virtual address space.
