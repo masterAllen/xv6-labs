@@ -19,6 +19,6 @@
 |                                             | ☐ udp receive             | Meaningless for me, skip it            |
 | [07.lock](./docs/lab07_lock.md)             | ☑ memory allocator        | 1st most time-consuming problem        |
 |                                             | ☑ buffer cache            |                                         |
-| 08.filesystem                               | ☑ large files             | **TODO**                                |
-|                                             | ☑ implement symlinks      | **TODO**                                |
+| [08.filesystem](./docs/lab08_filesystem.md) | ☑ large files             |                                         |
+|                                             | ☑ implement symlinks      |                                         |
 | 09.mmap                                     | ☑ implement mmap          | **TODO** (2nd most time-consuming problem) |
