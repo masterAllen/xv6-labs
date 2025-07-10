@@ -1,3 +1,5 @@
+[中文](./../zh/lab07_lock_zh.md) | English
+
 # lab07_lock
 
 > [!IMPORTANT]  
@@ -125,8 +127,7 @@ static struct buf* bget(uint dev, uint blockno) {
   acquire(&bcache.lock[idx]);
   // Is the block already cached? (same as before, skip it in this demo)
   // Not cached. Recycle the least recently used (LRU) unused buffer. (similar as before, skip it in this demo)
-  // Must release, otherwise get deadlock. (same as the previous problem)
-  release(&bcache.lock[idx]);
+  release(&bcache.lock[idx]); // Must release, otherwise get deadlock.
 
   // Now we want to borrow a bucket from another list.
 ```

@@ -1,3 +1,5 @@
+[中文](./../zh/lab04_trap_zh.md) | English
+
 # lab04_Trap
 
 > [!IMPORTANT]  

@@ -1,3 +1,5 @@
+[中文](./../zh/lab05_cow_zh.md) | English
+
 # lab05_copyonwrite
 
 > [!IMPORTANT]  

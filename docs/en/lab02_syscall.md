@@ -1,3 +1,4 @@
+[中文](./../zh/lab02_syscall_zh.md) | English
 
 > [!IMPORTANT]  
 > The following hint may contain a decisive solution. If you wish to solve the problem by yourself, **DO NOT** view it. If you find it helpful, consider staring this repository!

@@ -1,3 +1,5 @@
+[中文](./../zh/lab03_pagetable_zh.md) | English
+
 # lab03 PageTable
 
 > [!IMPORTANT]  
